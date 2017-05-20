@@ -4,6 +4,7 @@ function LoggedIn(conf) {
   button.onclick = this.handleLogout.bind(this);
   this.checkAuth();
   console.log("logged in area");
+  this.connectWs();
 }
 
 LoggedIn.prototype.checkAuth = function() {
@@ -29,6 +30,10 @@ LoggedIn.prototype.checkAuth = function() {
   });
 };
 
+LoggedIn.prototype.connectWs = function() {
+  var ws = new WebSocket(this.conf.wsUrl);
+};
+
 LoggedIn.prototype.handleLogout = function() {
   console.log('Logging out...');
 };
@@ -36,6 +41,7 @@ LoggedIn.prototype.handleLogout = function() {
 (function() {
   'use strict';
   var loggedIn = new LoggedIn({
-    backendUrl: '/api'
+    backendUrl: '/api',
+    wsUrl: 'ws://localhost:8081'
   });
 })();
