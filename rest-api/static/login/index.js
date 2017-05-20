@@ -2,6 +2,7 @@ function Login(conf) {
   this.conf = conf;
   var button = document.getElementById('login');
   button.onclick = this.handleLogin.bind(this);
+  this.checkAuth();
 }
 
 Login.prototype.handleLogin = function() {
@@ -27,6 +28,29 @@ Login.prototype.postLogin = function(body) {
       return;
     }
     localStorage.setItem("accessToken", res.jwt);
+    document.location.href = '/loggedIn';
+  });
+};
+
+Login.prototype.checkAuth = function() {
+  var accessToken = localStorage.getItem('accessToken');
+  if (accessToken === null) {
+    document.location.href = '/login';
+    return;
+  }
+  var headers = new Headers();
+  headers.append('Authorization', 'Bearer ' + accessToken);
+  fetch(this.conf.backendUrl + '/loggedIn', {
+    headers: headers
+  }).
+  then(function(res) {
+    return res.json();
+  }).
+  then(function(res) {
+    console.log(res);
+    if (!res.loggedIn) {
+      return;
+    }
     document.location.href = '/loggedIn';
   });
 };

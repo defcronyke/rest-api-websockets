@@ -14,6 +14,7 @@ import (
   "strconv"
   "io/ioutil"
   "crypto/rsa"
+  "strings"
 )
 
 type Auth struct {
@@ -40,6 +41,10 @@ type CreateAccountReqBody struct {
 type LoginReqBody struct {
   Username  string  `json:"username"`
   Password  string  `json:"password"`
+}
+
+type LoggedInResBody struct {
+  LoggedIn bool `json:"loggedIn"`
 }
 
 // A POST route for creating new user accounts
@@ -84,6 +89,7 @@ func (a *Auth) CreateAccount(w http.ResponseWriter, r *http.Request) {
   json.NewEncoder(w).Encode(resBody)
 }
 
+// A POST route for getting an access token if you provide a correct username/password combination
 func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
   log.Printf("Attempting to log in user: %v", r)
   w.Header().Set("Content-Type", "application/json")
@@ -120,6 +126,17 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
   json.NewEncoder(w).Encode(resBody)
 }
 
+// A GET route to check if a user is logged in
+// It uses auth middleware, so if we reach this route we can assume the user is logged in.
+func (a *Auth) LoggedIn(u *User, w http.ResponseWriter, r *http.Request) {
+  resBody := LoggedInResBody{
+    LoggedIn: true,
+  }
+  log.Printf("User is currently logged in: %v", u.Username)
+  json.NewEncoder(w).Encode(resBody)
+}
+
+// Get an access token for a given user
 func (a *Auth) GetLoginJwt(username string, r *http.Request) string {
   var err error
   iss := r.Host + "/login"
@@ -154,6 +171,65 @@ func (a *Auth) GetLoginJwt(username string, r *http.Request) string {
     return ""
   }
   return tokenStr
+}
+
+// Middleware for authenticated routes
+// The JWT should be in an Authorization header with the word Bearer before it
+func (a *Auth) AuthenticatedRoute(next func(u *User, w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
+  return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    // Get access token from Authorization header
+    var err error
+    var authHeader string
+    if authHeader = r.Header.Get("Authorization"); authHeader == "" {
+      a.Err("Error: Authorization header missing from request", http.StatusBadRequest, w, r)
+      return
+    }
+    var authHeaderParts []string
+    if authHeaderParts = strings.Split(authHeader, " "); len(authHeaderParts) != 2 && authHeaderParts[0] != "Bearer" {
+      a.Err("Error: Authentication header should contain the word Bearer, followed by a space, and then the JWT access token", http.StatusBadRequest, w, r)
+      return
+    }
+
+    // Validate access token from header
+    accessTokenStr := authHeaderParts[1]
+    var token *jwt.Token
+    if token, err = jwt.Parse(accessTokenStr, func(token *jwt.Token) (interface{}, error) {
+      if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+        return nil, fmt.Errorf("Incorrect signing method: %v", token.Header["alg"])
+      }
+      var pubKey []byte
+      if pubKey, err = ioutil.ReadFile("keys/jwt.key.pub"); err != nil {
+        return nil, fmt.Errorf("Failed loading public key from disk: %v", err)
+      }
+      var parsedPubKey *rsa.PublicKey
+      if parsedPubKey, err = jwt.ParseRSAPublicKeyFromPEM(pubKey); err != nil {
+        return nil, fmt.Errorf("Failed parsing RS256 public key from PEM file: %v", err)
+      }
+      return parsedPubKey, nil
+    }); err != nil {
+      a.Err(fmt.Sprintf("Error: %v", err), http.StatusUnauthorized, w, r)
+      return
+    }
+    var claims map[string]interface{}
+    var ok bool
+    if claims, ok = token.Claims.(jwt.MapClaims); !ok || !token.Valid {
+      a.Err("Error: Access token is invalid", http.StatusUnauthorized, w, r)
+      return
+    }
+
+    // Check blacklist for our access token's jti claim to see if user has logged out
+
+    // Get user details from db
+    db := NewDb(w, r)
+    var u *User
+    if u = db.QueryGetUser(claims["sub"].(string)); u.Username == "" {
+      a.Err("Error: User not found in database", http.StatusNotFound, w, r)
+      return
+    }
+
+    // We are authenticated, so call the authenticated route
+    next(u, w, r)
+  })
 }
 
 func (a *Auth) Err(msg string, code int, w http.ResponseWriter, r *http.Request) {
