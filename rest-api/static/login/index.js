@@ -22,6 +22,12 @@ Login.prototype.postLogin = function(body) {
   }).
   then(function(res) {
     console.log(res);
+    if (!res.ok) {
+      console.log('Error: Login failed');
+      return;
+    }
+    localStorage.setItem("accessToken", res.jwt);
+    document.location.href = '/loggedIn';
   });
 };
 
