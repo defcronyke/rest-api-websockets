@@ -35,7 +35,6 @@ Login.prototype.postLogin = function(body) {
 Login.prototype.checkAuth = function() {
   var accessToken = localStorage.getItem('accessToken');
   if (accessToken === null) {
-    document.location.href = '/login';
     return;
   }
   var headers = new Headers();
