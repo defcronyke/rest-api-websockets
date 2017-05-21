@@ -1,7 +1,11 @@
 function LoggedIn(conf) {
   this.conf = conf;
-  var button = document.getElementById('logout');
-  button.onclick = this.handleLogout.bind(this);
+  var helloButton = document.getElementById('wsHello');
+  helloButton.onclick = this.handleSendHello.bind(this);
+  var notImplementedButton = document.getElementById('wsNotImplemented');
+  notImplementedButton.onclick = this.handleSendNotImplemented.bind(this);
+  var logoutButton = document.getElementById('logout');
+  logoutButton.onclick = this.handleLogout.bind(this);
   this.checkAuth();
   console.log("logged in area");
   this.connectWs();
@@ -31,7 +35,27 @@ LoggedIn.prototype.checkAuth = function() {
 };
 
 LoggedIn.prototype.connectWs = function() {
-  var ws = new WebSocket(this.conf.wsUrl);
+  this.ws = new WebSocket(this.conf.wsUrl);
+  if (this.ws === null) {
+    console.log('Error: Websocket connection failed');
+    return;
+  }
+  console.log('Connected to websocket server');
+  this.ws.onmessage = function(e) {
+    console.log('websocket msg received:', JSON.parse(e.data));
+  }
+};
+
+LoggedIn.prototype.handleSendHello = function() {
+  this.ws.send(JSON.stringify({
+    cmd: 'hello'
+  }));
+};
+
+LoggedIn.prototype.handleSendNotImplemented = function() {
+  this.ws.send(JSON.stringify({
+    cmd: 'garlic'
+  }));
 };
 
 LoggedIn.prototype.handleLogout = function() {

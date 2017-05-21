@@ -4,3 +4,7 @@
     flex-direction: column;
     align-items: flex-end;
 }
+
+.loggedInForm button {
+  margin: 5px;
+}
