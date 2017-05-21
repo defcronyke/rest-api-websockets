@@ -8,3 +8,9 @@
 .loggedInForm button {
   margin: 5px;
 }
+
+#msgBox {
+  width: 340px;
+  height: 200px;
+  resize: none;
+}

@@ -1,14 +1,23 @@
 function LoggedIn(conf) {
   this.conf = conf;
+
   var helloButton = document.getElementById('wsHello');
   helloButton.onclick = this.handleSendHello.bind(this);
+
   var notImplementedButton = document.getElementById('wsNotImplemented');
   notImplementedButton.onclick = this.handleSendNotImplemented.bind(this);
+
+  var wsBroadcastButton = document.getElementById('wsBroadcast');
+  wsBroadcastButton.onclick = this.handleBroadcast.bind(this);
+
   var logoutButton = document.getElementById('logout');
   logoutButton.onclick = this.handleLogout.bind(this);
+
+  this.msgBox = document.getElementById('msgBox');
+
   this.checkAuth();
   console.log("logged in area");
-  this.connectWs();
+  this.connectWs(this.conf.wsUrl);
 }
 
 LoggedIn.prototype.checkAuth = function() {
@@ -34,15 +43,55 @@ LoggedIn.prototype.checkAuth = function() {
   });
 };
 
-LoggedIn.prototype.connectWs = function() {
-  this.ws = new WebSocket(this.conf.wsUrl);
+LoggedIn.prototype.connectWs = function(url) {
+  this.ws = new WebSocket(url);
   if (this.ws === null) {
     console.log('Error: Websocket connection failed');
     return;
   }
-  console.log('Connected to websocket server');
-  this.ws.onmessage = function(e) {
-    console.log('websocket msg received:', JSON.parse(e.data));
+  this.ws.onopen = this.onopen.bind(this);
+  this.ws.onmessage = this.onmessage.bind(this);
+  this.ws.onclose = this.onclose.bind(this);
+  this.ws.onerror = this.onerror.bind(this);
+};
+
+LoggedIn.prototype.onopen = function() {
+  var connectedMsg = 'Connected to websocket server';
+  console.log(connectedMsg);
+  this.msgBox.value += connectedMsg + '\n';
+  this.msgBox.scrollTop = this.msgBox.scrollHeight;
+};
+
+LoggedIn.prototype.onclose = function() {
+  var disconnectMsg = 'Connection to websocket server closed, will attempt to reconnect in 5 seconds...';
+  console.log(disconnectMsg);
+  this.msgBox.value += disconnectMsg + '\n';
+  this.msgBox.scrollTop = this.msgBox.scrollHeight;
+
+  setTimeout((function() {
+    this.connectWs(this.conf.wsUrl);
+  }).bind(this), 1000 * 5);
+};
+
+LoggedIn.prototype.onerror = function(e) {
+  console.log('Connection error:', e);
+  console.log('Attempting to connect to production server...');
+  this.ws.onclose = null;
+  this.connectWs(this.conf.wsProdUrl);
+};
+
+LoggedIn.prototype.onmessage = function(e) {
+  var msg = JSON.parse(e.data);
+  switch (msg.cmd) {
+  case 'hello':
+    console.log('websocket hello received:', msg);
+    this.msgBox.value += 'websocket msg received: ' + msg.cmd + '\n';
+    this.msgBox.scrollTop = this.msgBox.scrollHeight;
+    break;
+  default:
+    console.log('websocket msg received:', msg);
+    this.msgBox.value += 'websocket msg received: ' + msg.msg + '\n';
+    this.msgBox.scrollTop = this.msgBox.scrollHeight;
   }
 };
 
@@ -58,6 +107,18 @@ LoggedIn.prototype.handleSendNotImplemented = function() {
   }));
 };
 
+LoggedIn.prototype.handleBroadcast = function() {
+  var bcast = 'Broadcasting to all users: ';
+  var msg = 'Hi everyone!';
+  console.log(bcast, msg);
+  this.msgBox.value += bcast + msg + '\n';
+  this.msgBox.scrollTop = this.msgBox.scrollHeight;
+  this.ws.send(JSON.stringify({
+    cmd: 'broadcast',
+    strArgs: [msg]
+  }));
+};
+
 LoggedIn.prototype.handleLogout = function() {
   console.log('Logging out...');
 };
@@ -66,6 +127,7 @@ LoggedIn.prototype.handleLogout = function() {
   'use strict';
   var loggedIn = new LoggedIn({
     backendUrl: '/api',
-    wsUrl: 'ws://localhost:8081'
+    wsUrl: 'ws://localhost:8081',
+    wsProdUrl: 'ws://35.185.61.156:8081'
   });
 })();
