@@ -185,7 +185,7 @@ func (a *Auth) AuthenticatedRoute(next func(u *User, w http.ResponseWriter, r *h
       return
     }
     var authHeaderParts []string
-    if authHeaderParts = strings.Split(authHeader, " "); len(authHeaderParts) != 2 && authHeaderParts[0] != "Bearer" {
+    if authHeaderParts = strings.Split(authHeader, " "); len(authHeaderParts) != 2 || authHeaderParts[0] != "Bearer" {
       a.Err("Error: Authentication header should contain the word Bearer, followed by a space, and then the JWT access token", http.StatusBadRequest, w, r)
       return
     }
